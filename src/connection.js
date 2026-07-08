@@ -1,4 +1,5 @@
 import logger from './logger.js';
+import { AuthError } from './loxoneAuth.js';
 
 /**
  * Owns the live connection to the Loxone MCP endpoint: endpoint resolution,
@@ -82,9 +83,11 @@ export class Connection {
 
   async _fullAuth() {
     let lastErr;
+    let reresolve = false; // only true once a failure suggests the entry itself is stale
     for (let attempt = 1; attempt <= this.maxAuthAttempts; attempt++) {
       try {
-        const entry = await this.resolver.resolve({ force: attempt > 1 });
+        const entry = await this.resolver.resolve({ force: reresolve });
+        reresolve = false;
         const res = await this.auth.authorize(entry);
         this.state = { entryOrigin: entry, ...res };
         this.sessionId = null; // fresh auth => need a new MCP session
@@ -95,8 +98,17 @@ export class Connection {
       } catch (e) {
         lastErr = e;
         this.log.warn(`connection: auth attempt ${attempt}/${this.maxAuthAttempts} failed: ${e.message}`);
-        this.resolver.invalidate();
-        if (attempt < this.maxAuthAttempts) await sleep(backoff(attempt));
+        // AuthError means the entry origin answered over HTTP (registration/login/
+        // token exchange rejected it) — the relay itself is fine, so re-resolving
+        // just burns connect.loxonecloud.com's ~10/window rate limit for nothing.
+        // Only force a fresh resolve when the failure looks like the entry itself
+        // is unreachable/stale (a ResolveError, or a raw network exception).
+        reresolve = !(e instanceof AuthError);
+        if (reresolve) this.resolver.invalidate();
+        if (attempt < this.maxAuthAttempts) {
+          const wait = e instanceof AuthError && e.status === 429 ? 15000 : backoff(attempt);
+          await sleep(wait);
+        }
       }
     }
     throw new Error(`could not authenticate after ${this.maxAuthAttempts} attempts: ${lastErr?.message || 'unknown error'}`);

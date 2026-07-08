@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Connection, readSSE, backoff } from '../src/connection.js';
+import { AuthError } from '../src/loxoneAuth.js';
 import { resp } from './helpers.js';
 
 const silent = { error() {}, warn() {}, info() {}, debug() {} };
@@ -44,6 +45,44 @@ test('ensureAuth falls back to full auth when refresh fails', async () => {
   const c = new Connection({ resolver: resolverStub(), auth, cache, log: silent, fetchImpl: async () => {} });
   await c.ensureAuth();
   assert.equal(c.state.accessToken, 'FRESH');
+});
+
+test('_fullAuth does not re-resolve after an AuthError (entry was reachable, just rejected)', async () => {
+  let invalidated = false;
+  const resolver = { resolve: async () => 'https://entry.x:1', invalidate() { invalidated = true; } };
+  let authCalls = 0;
+  const auth = {
+    fetch: async () => {},
+    authorize: async () => {
+      authCalls++;
+      if (authCalls === 1) throw new AuthError('client registration: HTTP 500', { status: 500 });
+      return token({ accessToken: 'RETRY-OK' });
+    },
+    refresh: async () => { throw new Error('no refresh'); },
+  };
+  const c = new Connection({ resolver, auth, cache: nullCache(), log: silent, fetchImpl: async () => {}, maxAuthAttempts: 2 });
+  await c.ensureAuth();
+  assert.equal(c.state.accessToken, 'RETRY-OK');
+  assert.equal(invalidated, false, 'a registration/login rejection should not invalidate a perfectly reachable relay entry');
+});
+
+test('_fullAuth re-resolves after a non-AuthError failure (entry may be stale/unreachable)', async () => {
+  let invalidated = false;
+  const resolver = { resolve: async () => 'https://entry.x:1', invalidate() { invalidated = true; } };
+  let authCalls = 0;
+  const auth = {
+    fetch: async () => {},
+    authorize: async () => {
+      authCalls++;
+      if (authCalls === 1) throw new Error('ECONNREFUSED');
+      return token({ accessToken: 'RETRY-OK2' });
+    },
+    refresh: async () => { throw new Error('no refresh'); },
+  };
+  const c = new Connection({ resolver, auth, cache: nullCache(), log: silent, fetchImpl: async () => {}, maxAuthAttempts: 2 });
+  await c.ensureAuth();
+  assert.equal(c.state.accessToken, 'RETRY-OK2');
+  assert.equal(invalidated, true, 'a network-level failure reaching the entry should trigger a fresh resolve');
 });
 
 test('send(initialize) parses SSE and captures the session id + protocol', async () => {
