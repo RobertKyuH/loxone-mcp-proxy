@@ -3,7 +3,7 @@
 // lists the available Loxone tools, WITHOUT starting the stdio proxy.
 // Usage:  npm run login-check
 import { loadConfig } from '../src/config.js';
-import { EndpointResolver } from '../src/resolver.js';
+import { EndpointResolver, FixedEndpointResolver } from '../src/resolver.js';
 import { LoxoneAuth } from '../src/loxoneAuth.js';
 import { Connection } from '../src/connection.js';
 import { NullCache } from '../src/cache.js';
@@ -20,7 +20,10 @@ try {
 
 out(`Checking Loxone MCP for serial ${config.serial} as user "${config.username}"...`);
 
-const resolver = new EndpointResolver({ serial: config.serial, connectBase: config.connectBase, minIntervalMs: config.connectMinIntervalMs });
+const resolver = config.entryUrl
+  ? new FixedEndpointResolver({ entryUrl: config.entryUrl })
+  : new EndpointResolver({ serial: config.serial, connectBase: config.connectBase, minIntervalMs: config.connectMinIntervalMs });
+out(config.entryUrl ? `Direct mode: ${resolver.fixedEntry}` : `Relay mode: ${config.connectBase}`);
 const auth = new LoxoneAuth({ username: config.username, password: config.password, redirectPort: config.redirectPort });
 const connection = new Connection({ resolver, auth, cache: new NullCache(), maxAuthAttempts: config.maxResolveAttempts });
 

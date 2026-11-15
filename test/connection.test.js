@@ -158,3 +158,29 @@ test('backoff grows and is capped at 8s', () => {
   assert.ok(backoff(1) <= backoff(2));
   assert.ok(backoff(20) <= 8000);
 });
+
+test('direct mode: a cached token for a different entry is discarded', () => {
+  const cache = { load: () => token({ entryOrigin: 'https://old-relay.x:9' }), save() {} };
+  const resolver = { fixedEntry: 'https://lan.x', resolve: async () => 'https://lan.x', invalidate() {} };
+  const c = new Connection({ resolver, auth: {}, cache, log: silent, fetchImpl: async () => {} });
+  assert.equal(c.state, null);
+});
+
+test('direct mode: a cached token for the same entry is kept', () => {
+  const cache = { load: () => token({ entryOrigin: 'https://lan.x' }), save() {} };
+  const resolver = { fixedEntry: 'https://lan.x', resolve: async () => 'https://lan.x', invalidate() {} };
+  const c = new Connection({ resolver, auth: {}, cache, log: silent, fetchImpl: async () => {} });
+  assert.equal(c.state.accessToken, 'AT');
+});
+
+test('_fullAuth stops immediately on a fatal AuthError (rejected credentials)', async () => {
+  let authCalls = 0;
+  const auth = {
+    fetch: async () => {},
+    authorize: async () => { authCalls++; throw new AuthError('login was rejected (form re-rendered)', { fatal: true }); },
+    refresh: async () => { throw new Error('no refresh'); },
+  };
+  const c = new Connection({ resolver: resolverStub(), auth, cache: nullCache(), log: silent, fetchImpl: async () => {}, maxAuthAttempts: 6 });
+  await assert.rejects(() => c.ensureAuth(), /login was rejected/);
+  assert.equal(authCalls, 1, 'every retry is another failed login counted by the Miniserver lockout');
+});

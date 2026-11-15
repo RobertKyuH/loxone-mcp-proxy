@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EndpointResolver, ResolveError } from '../src/resolver.js';
+import { EndpointResolver, FixedEndpointResolver, ResolveError } from '../src/resolver.js';
 import { mockFetch, resp } from './helpers.js';
 
 const silent = { error() {}, warn() {}, info() {}, debug() {} };
@@ -47,4 +47,18 @@ test('a failed connect request is reported as retryable', async () => {
 test('connectUrl builds the stable connect path (trailing slash tolerated)', () => {
   const r = new EndpointResolver({ serial: 'XYZ', connectBase: 'https://connect.loxonecloud.com/', fetchImpl: () => {}, log: silent });
   assert.equal(r.connectUrl, 'https://connect.loxonecloud.com/XYZ/mcp');
+});
+
+test('FixedEndpointResolver returns the configured origin without any network call', async () => {
+  const r = new FixedEndpointResolver({ entryUrl: 'https://192-168-10-157.abc.dyndns.loxonecloud.com/mcp/', log: silent });
+  assert.equal(r.fixedEntry, 'https://192-168-10-157.abc.dyndns.loxonecloud.com');
+  assert.equal(await r.resolve(), 'https://192-168-10-157.abc.dyndns.loxonecloud.com');
+  assert.equal(await r.resolve({ force: true }), 'https://192-168-10-157.abc.dyndns.loxonecloud.com');
+  r.invalidate();
+  assert.equal(await r.resolve(), 'https://192-168-10-157.abc.dyndns.loxonecloud.com');
+});
+
+test('FixedEndpointResolver rejects a non-http(s) entry URL', () => {
+  assert.throws(() => new FixedEndpointResolver({ entryUrl: 'ftp://x', log: silent }), /http/);
+  assert.throws(() => new FixedEndpointResolver({ entryUrl: 'not a url', log: silent }), /LOXONE_ENTRY_URL/);
 });

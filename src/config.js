@@ -67,6 +67,9 @@ export function loadConfig() {
     serial,
     username,
     password,
+    // Direct mode: talk to this entry origin instead of resolving a relay via
+    // Loxone Remote Connect (which only admits the official App/Config since 2026-11).
+    entryUrl: (process.env.LOXONE_ENTRY_URL || '').trim() || null,
     connectBase: (process.env.LOXONE_CONNECT_BASE || 'https://connect.loxonecloud.com').replace(/\/+$/, ''),
     cachePath: process.env.LOXONE_CACHE_PATH || path.join(os.homedir(), '.loxone-mcp-proxy', 'cache.json'),
     redirectPort: parseInt(process.env.LOXONE_REDIRECT_PORT || '41678', 10),

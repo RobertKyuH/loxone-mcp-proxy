@@ -40,3 +40,16 @@ test('loadConfig normalizes the serial and reads credentials', () => {
   assert.equal(cfg.connectBase, 'https://connect.loxonecloud.com');
   process.env = save;
 });
+
+test('loadConfig reads LOXONE_ENTRY_URL (direct mode) and defaults to null', () => {
+  const save = { ...process.env };
+  process.env.LOXONE_NO_DOTENV = '1';
+  process.env.LOXONE_SERIAL = '504F94A25F91';
+  process.env.LOXONE_USER = 'mcp';
+  process.env.LOXONE_PASSWORD = 'pw';
+  delete process.env.LOXONE_ENTRY_URL;
+  assert.equal(loadConfig().entryUrl, null);
+  process.env.LOXONE_ENTRY_URL = ' https://192-168-10-157.504f94a25f91.dyndns.loxonecloud.com ';
+  assert.equal(loadConfig().entryUrl, 'https://192-168-10-157.504f94a25f91.dyndns.loxonecloud.com');
+  process.env = save;
+});

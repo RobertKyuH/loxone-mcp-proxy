@@ -199,10 +199,32 @@ All optional, via `.env` or environment:
 | `LOXONE_SERIAL` | — | **required** — Miniserver serial (MAC, no colons) |
 | `LOXONE_USER` | — | **required** — Loxone username |
 | `LOXONE_PASSWORD` | — | **required** — Loxone password |
-| `LOXONE_CONNECT_BASE` | `https://connect.loxonecloud.com` | Loxone Cloud connect base |
+| `LOXONE_ENTRY_URL` | — | **direct mode**: MCP entry origin used as-is, no Remote Connect lookup (see below) |
+| `LOXONE_CONNECT_BASE` | `https://connect.loxonecloud.com` | Loxone Cloud connect base (relay mode only) |
+| `LOXONE_MAX_ATTEMPTS` | `6` | full-auth attempts per run (rejected credentials are never retried) |
 | `LOXONE_CACHE_PATH` | `~/.loxone-mcp-proxy/cache.json` | token cache location |
 | `LOXONE_REDIRECT_PORT` | `41678` | loopback port used only as the OAuth redirect target |
 | `LOXONE_DEBUG` | `0` | set `1` for verbose stderr logging |
+
+## Direct mode (local network)
+
+Since November 2026 Loxone Remote Connect (`connect.loxonecloud.com/<serial>/mcp`)
+answers `403 Request not permitted` to anything but the official Loxone App and
+Loxone Config, so relay mode no longer works for third-party clients. When the
+Miniserver is reachable directly (same LAN, VPN, routed subnet), set
+`LOXONE_ENTRY_URL` and the proxy talks to that origin only:
+
+```bash
+# <ip-with-dashes>.<serial in lowercase>.dyndns.loxonecloud.com resolves to the
+# LAN IP and matches the Miniserver's own certificate (*.<serial>.dyndns.loxonecloud.com)
+LOXONE_ENTRY_URL=https://192-168-10-157.504f94a25f91.dyndns.loxonecloud.com
+```
+
+It must be the name the Miniserver advertises as `resource` in
+`/mcp/.well-known/oauth-protected-resource`; plain `http://<ip>` serves `/mcp`
+but OAuth runs over HTTPS. Port 443 has to be reachable. OAuth, refresh and the
+MCP session work exactly as in relay mode; a token cached for a different entry
+is ignored.
 
 ## Development
 
