@@ -22,7 +22,12 @@ export class Connection {
     this.initMessage = null; // remembered "initialize" request for transparent replay
 
     const cached = this.cache?.load?.();
-    if (cached && cached.accessToken) {
+    // In direct mode the entry is pinned: a token cached for another entry (e.g.
+    // an old Remote Connect relay) has another audience and would only cost a
+    // failed request, so start clean.
+    if (cached && this.resolver?.fixedEntry && cached.entryOrigin !== this.resolver.fixedEntry) {
+      this.log.info('connection: cached token belongs to another entry; ignoring it');
+    } else if (cached && cached.accessToken) {
       this.state = { ...cached };
       this.log.debug('connection: loaded cached token for resource', cached.resource);
     }
@@ -98,6 +103,7 @@ export class Connection {
       } catch (e) {
         lastErr = e;
         this.log.warn(`connection: auth attempt ${attempt}/${this.maxAuthAttempts} failed: ${e.message}`);
+        if (e instanceof AuthError && e.fatal) throw new Error(`could not authenticate (not retried): ${e.message}`);
         // AuthError means the entry origin answered over HTTP (registration/login/
         // token exchange rejected it) — the relay itself is fine, so re-resolving
         // just burns connect.loxonecloud.com's ~10/window rate limit for nothing.

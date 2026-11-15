@@ -1,6 +1,6 @@
 {
   "name": "loxone-mcp-proxy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local, zero-dependency MCP proxy for the Loxone Miniserver's native MCP Server. Gives Claude Desktop a stable stdio endpoint with automatic Loxone Cloud relay resolution and headless (no-browser) credential login.",
   "type": "module",
   "bin": {

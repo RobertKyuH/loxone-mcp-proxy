@@ -86,3 +86,14 @@ test('refresh() posts a refresh_token grant', async () => {
   assert.equal(t.accessToken, 'A2');
   assert.match(fetchImpl.calls[0].options.body.toString(), /grant_type=refresh_token/);
 });
+
+test('a rejected login is a fatal AuthError (retrying only feeds the lockout counter)', async () => {
+  const badRouter = (u) => {
+    if (u.includes('/.well-known/oauth-protected-resource')) return resp({ body: JSON.stringify({ resource: 'https://relay.example/mcp' }) });
+    if (u.includes('/mcp/oauth/register')) return resp({ status: 201, body: JSON.stringify({ client_id: 'CID' }) });
+    if (u.includes('/mcp/oauth/authorize')) return resp({ status: 200, body: LOGIN_FORM_HTML });
+    return null;
+  };
+  const auth = new LoxoneAuth({ username: 'mcp', password: 'bad', fetchImpl: mockFetch(badRouter), log: silent });
+  await assert.rejects(() => auth.authorize(ENTRY), (e) => e instanceof AuthError && e.fatal === true);
+});

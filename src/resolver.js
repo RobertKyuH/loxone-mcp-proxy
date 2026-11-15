@@ -77,6 +77,36 @@ export class EndpointResolver {
   }
 }
 
+/**
+ * Direct mode (LOXONE_ENTRY_URL): the Miniserver's MCP endpoint is reachable
+ * without Loxone Remote Connect — e.g. on the local network via the
+ * Miniserver's own certificate name
+ * "https://<ip-with-dashes>.<serial>.dyndns.loxonecloud.com", which resolves
+ * to the LAN IP. No connect.loxonecloud.com request is ever made, so there is
+ * nothing to rate-limit, cache or invalidate.
+ */
+export class FixedEndpointResolver {
+  constructor({ entryUrl, log = logger }) {
+    let u;
+    try {
+      u = new URL(String(entryUrl || '').trim());
+    } catch {
+      throw new Error(`LOXONE_ENTRY_URL is not a valid URL: ${entryUrl}`);
+    }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+      throw new Error(`LOXONE_ENTRY_URL must be an http(s) URL, got ${u.protocol}`);
+    }
+    this.fixedEntry = u.origin;
+    this.log = log;
+  }
+
+  async resolve() {
+    return this.fixedEntry;
+  }
+
+  invalidate() {}
+}
+
 export class ResolveError extends Error {
   constructor(message, { retryable = true, resetEpoch } = {}) {
     super(message);

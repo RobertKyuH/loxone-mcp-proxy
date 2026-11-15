@@ -106,7 +106,7 @@ export class LoxoneAuth {
       const loc = g.headers.get('location');
       if (loc) {
         const err = new URL(loc, au).searchParams.get('error');
-        if (err) throw new AuthError(`authorize rejected the request: ${err}`);
+        if (err) throw new AuthError(`authorize rejected the request: ${err}`, { fatal: true });
       }
       throw new AuthError(`authorize returned HTTP ${g.status}; expected the login form`);
     }
@@ -133,7 +133,7 @@ export class LoxoneAuth {
     const loc = p.headers.get('location');
     if (!loc) {
       if (p.status === 200) {
-        throw new AuthError('login was rejected (form re-rendered) — check LOXONE_USER / LOXONE_PASSWORD and that the user may access this Miniserver');
+        throw new AuthError('login was rejected (form re-rendered) — check LOXONE_USER / LOXONE_PASSWORD and that the user may access this Miniserver', { fatal: true });
       }
       throw new AuthError(`login POST returned HTTP ${p.status} with no redirect`);
     }
@@ -141,7 +141,7 @@ export class LoxoneAuth {
     const err = cb.searchParams.get('error');
     if (err) {
       const desc = cb.searchParams.get('error_description') || '';
-      throw new AuthError(`authorization failed: ${err} ${desc}`.trim());
+      throw new AuthError(`authorization failed: ${err} ${desc}`.trim(), { fatal: true });
     }
     const code = cb.searchParams.get('code');
     if (!code) throw new AuthError('no authorization code returned in the callback');
@@ -207,11 +207,17 @@ export function normalizeTokens(j) {
   };
 }
 
+/**
+ * `fatal` marks a rejection that retrying cannot fix (wrong credentials, user
+ * not allowed). Retrying it is harmful: every attempt is another failed login,
+ * and Miniserver firmware 17.3+ locks the source out after repeated failures.
+ */
 export class AuthError extends Error {
-  constructor(message, { status } = {}) {
+  constructor(message, { status, fatal = false } = {}) {
     super(message);
     this.name = 'AuthError';
     this.status = status;
+    this.fatal = fatal;
   }
 }
 

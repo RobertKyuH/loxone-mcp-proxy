@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { loadConfig } from './config.js';
 import logger from './logger.js';
-import { EndpointResolver } from './resolver.js';
+import { EndpointResolver, FixedEndpointResolver } from './resolver.js';
 import { LoxoneAuth } from './loxoneAuth.js';
 import { TokenCache } from './cache.js';
 import { Connection } from './connection.js';
@@ -22,11 +22,20 @@ async function main() {
 
   logger.info(`loxone-mcp-proxy starting — serial ${config.serial}, user "${config.username}"`);
 
-  const resolver = new EndpointResolver({
-    serial: config.serial,
-    connectBase: config.connectBase,
-    minIntervalMs: config.connectMinIntervalMs,
-  });
+  let resolver;
+  try {
+    resolver = config.entryUrl
+      ? new FixedEndpointResolver({ entryUrl: config.entryUrl })
+      : new EndpointResolver({
+        serial: config.serial,
+        connectBase: config.connectBase,
+        minIntervalMs: config.connectMinIntervalMs,
+      });
+  } catch (e) {
+    logger.error(e.message);
+    process.exit(1);
+  }
+  logger.info(config.entryUrl ? `direct mode: entry ${resolver.fixedEntry}` : `relay mode: via ${config.connectBase}`);
   const auth = new LoxoneAuth({
     username: config.username,
     password: config.password,
